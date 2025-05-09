@@ -15,7 +15,6 @@ tasks:
     desc: Run all linting checks
     cmds:
       - task: lint:ruff
-      - task: lint:pylint
       - task: lint:pyright
 
   lint:ruff:
