@@ -4,7 +4,7 @@ Multimodal embedding request models for the Embed-All library.
 This module contains request models for multimodal embeddings across different providers.
 """
 
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import Field, field_validator, model_validator
 
@@ -20,7 +20,7 @@ class ImageInput(BaseModel):
 	path: str | None = Field(None, description="Local file path to the image")
 
 	@model_validator(mode="after")
-	def validate_image_source(self):
+	def validate_image_source(self) -> Self:
 		"""Validate that exactly one image source is provided."""
 		sources = [s for s in [self.url, self.base64, self.path] if s is not None]
 		if len(sources) == 0:
@@ -39,7 +39,7 @@ class MultimodalInput(BaseModel):
 	image: ImageInput | None = Field(None, description="Image component of the multimodal input")
 
 	@model_validator(mode="after")
-	def validate_multimodal_input(self):
+	def validate_multimodal_input(self) -> Self:
 		"""Validate that at least one of text or image is provided."""
 		if self.text is None and self.image is None:
 			msg = "At least one of text or image must be provided"

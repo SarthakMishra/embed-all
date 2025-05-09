@@ -4,8 +4,6 @@ Batch embedding request models for the Embed-All library.
 This module contains request models for batch embeddings across different providers.
 """
 
-from typing import Literal
-
 from pydantic import Field, field_validator
 
 from embed_all.models.requests.base import BaseRequest
@@ -15,12 +13,14 @@ class BatchEmbeddingRequest(BaseRequest):
 	"""Request model for batch embedding operations."""
 
 	inputs: list[str] = Field(..., description="List of texts to embed in batch")
+	model: str
 	dimensions: int | None = Field(None, description="Desired dimensionality of the embeddings")
 	batch_size: int = Field(32, description="Number of texts to process in each batch")
-	truncate: Literal["NONE", "START", "END"] | None = Field(
-		"NONE", description="Truncation strategy if text exceeds model's context window"
+	truncate: bool | None = Field(None, description="Whether to truncate the input text. Provider-specific handling.")
+	encoding_format: str | None = Field(None, description="Output encoding format. Provider-specific.")
+	input_type: str | None = Field(
+		None, description="Type of the input text (e.g., query, document). Provider-specific."
 	)
-	encoding_format: Literal["float", "base64"] | None = Field("float", description="Output encoding format")
 
 	@field_validator("inputs")
 	@classmethod
