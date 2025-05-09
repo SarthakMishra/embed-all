@@ -8,3 +8,10 @@ wheels/
 
 # Virtual environments
 .venv
+
+.env
+.env.local
+
+#codemap
+documentation
+.codemap_cache
