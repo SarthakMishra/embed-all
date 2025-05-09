@@ -11,6 +11,7 @@
     "python.analysis.useLibraryCodeForTypes": true,
     "python.analysis.autoSearchPaths": true,
     "python.analysis.autoImportCompletions": true,
+    "pylint.enabled": false,
     "python.analysis.ignore": [
         "**/vendor/**",
         "**/scripts/**",
