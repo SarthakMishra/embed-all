@@ -18,7 +18,12 @@ from embed_all.models import (
 	TextEmbeddingRequest,
 	TextEmbeddingResponse,
 )
+from embed_all.models.base import ProviderModel
 from embed_all.models.errors import EmbedError
+
+# Store real httpx.AsyncClient type to use in isinstance checks,
+# as httpx.AsyncClient might be mocked in tests.
+_RealHttpxAsyncClient = httpx.AsyncClient
 
 logger = logging.getLogger("embed_all")
 
@@ -49,11 +54,27 @@ class AsyncClient(BaseClient):
 			timeout: Request timeout in seconds
 			max_retries: Maximum number of retries for failed requests
 		"""
+		# Step 1: Initialize provider_client.
+		# Its config will have model=None if the user passed None.
+		# BaseClient's __init__ will later resolve self.config.model to a string.
+		provider_specific_config = ProviderModel(
+			provider=provider,
+			api_key=api_key,
+			base_url=base_url,
+			model=model,  # Pass the original model (can be None)
+			timeout=timeout,
+			max_retries=max_retries,
+		)
+		self._provider_client = get_provider_client(provider)(provider_specific_config)
+
+		# Step 2: Call super().__init__().
+		# BaseClient.__init__ will set self.config.
+		# self.config.model will be resolved to str (model or default_model).
 		super().__init__(
 			provider=provider,
 			api_key=api_key,
 			base_url=base_url,
-			model=model,
+			model=model,  # Pass original model (str | None)
 			timeout=timeout,
 			max_retries=max_retries,
 		)
@@ -64,15 +85,13 @@ class AsyncClient(BaseClient):
 			follow_redirects=True,
 		)
 
-		# Initialize the provider-specific client
-		self._provider_client = get_provider_client(provider)(self.config)
-
 	def _get_default_model(self) -> str:
 		"""Return the default model for this provider."""
 		return self._provider_client.default_model
 
 	async def _log_response(self, response: httpx.Response) -> None:
 		"""Log the response for debugging purposes."""
+		await response.aread()  # Ensure response is read before accessing .elapsed
 		logger.debug(
 			f"Response from {response.request.url}: "
 			f"status_code={response.status_code}, "
@@ -102,8 +121,15 @@ class AsyncClient(BaseClient):
 		"""
 		logger.warning("Using async client with sync method. For better control, use aembed for async operations.")
 
-		loop = asyncio.get_event_loop()
-		return loop.run_until_complete(self.aembed(text, model, dimensions, **kwargs))
+		# loop = asyncio.new_event_loop()
+		# asyncio.set_event_loop(loop)
+
+		# This approach with run_until_complete on a potentially existing loop is problematic.
+		# If called from an async context (e.g., another async def function, or pytest-asyncio test),
+		# get_running_loop() will succeed, but run_until_complete will fail as the loop is already running.
+		# A true sync wrapper typically uses asyncio.run() to manage its own event loop lifecycle.
+		# return loop.run_until_complete(self.aembed(text, model, dimensions, **kwargs))
+		return asyncio.run(self.aembed(text, model, dimensions, **kwargs))
 
 	def embed_batch(
 		self,
@@ -132,8 +158,15 @@ class AsyncClient(BaseClient):
 			"Using async client with sync method. For better control, use aembed_batch for async operations."
 		)
 
-		loop = asyncio.get_event_loop()
-		return loop.run_until_complete(self.aembed_batch(texts, model, dimensions, batch_size, **kwargs))
+		# loop = asyncio.new_event_loop()
+		# asyncio.set_event_loop(loop)
+
+		# Similar to embed(), this is problematic if called from an existing async context.
+		# Using asyncio.run() is generally safer for a sync wrapper.
+		# return loop.run_until_complete(
+		#     self.aembed_batch(texts, model, dimensions, batch_size, **kwargs)
+		# )
+		return asyncio.run(self.aembed_batch(texts, model, dimensions, batch_size, **kwargs))
 
 	async def aembed(
 		self,
@@ -153,15 +186,17 @@ class AsyncClient(BaseClient):
 		Returns:
 			TextEmbeddingResponse containing the embeddings
 		"""
+		# Use the new property for a guaranteed string model name
+		model_to_use: str = model or self.resolved_model_name
 		request = TextEmbeddingRequest(
-			model=model or self.config.model,
+			model=model_to_use,
 			input=text,
 			dimensions=dimensions,
 			**cast("dict", kwargs),
 		)
 
 		try:
-			return await self._provider_client.aembed(request, self._http_client)
+			return await self._provider_client.aembed(request, cast("httpx.AsyncClient", self._http_client))
 		except Exception as e:
 			logger.exception("Error generating embeddings")
 			if isinstance(e, EmbedError):
@@ -192,29 +227,57 @@ class AsyncClient(BaseClient):
 		Returns:
 			BatchEmbeddingResponse containing the embeddings
 		"""
-		request = BatchEmbeddingRequest(
-			model=model or self.config.model,
-			inputs=texts,
+		model_to_use: str = model or self.resolved_model_name
+		all_embeddings = []
+		failed_indices = []
+		total_usage = {}
+		batch_count = 0
+		num_texts = len(texts)
+		for i in range(0, num_texts, batch_size):
+			batch_texts = texts[i : i + batch_size]
+			batch_indices = list(range(i, i + len(batch_texts)))
+			request = BatchEmbeddingRequest(
+				model=model_to_use,
+				inputs=batch_texts,
+				dimensions=dimensions,
+				batch_size=batch_size,
+				**cast("dict", kwargs),
+			)
+			try:
+				response = await self._provider_client.aembed_batch(
+					request, cast("httpx.AsyncClient", self._http_client)
+				)
+				all_embeddings.extend(response.embeddings)
+				# Aggregate usage if present
+				if response.usage:
+					for k, v in response.usage.items():
+						total_usage[k] = total_usage.get(k, 0) + v
+				# If provider returns failed_indices, aggregate them
+				if response.failed_indices:
+					failed_indices.extend([batch_indices[idx] for idx in response.failed_indices])
+			except Exception:
+				logger.exception(f"Error processing batch starting at {i}")
+				failed_indices.extend(batch_indices)
+			batch_count += 1
+		dimensions = all_embeddings[0].dimensions if all_embeddings else (dimensions or 0)
+		return BatchEmbeddingResponse(
+			embeddings=all_embeddings,
 			dimensions=dimensions,
-			batch_size=batch_size,
-			**cast("dict", kwargs),
+			texts=texts,
+			batch_count=batch_count,
+			failed_indices=sorted(set(failed_indices)) if failed_indices else None,
+			model=model_to_use,
+			provider=self.config.provider,
+			usage=total_usage,
 		)
 
-		try:
-			return await self._provider_client.aembed_batch(request, self._http_client)
-		except Exception as e:
-			logger.exception("Error generating batch embeddings")
-			if isinstance(e, EmbedError):
-				raise
-			msg = f"Error generating batch embeddings: {e!s}"
-			raise EmbedError(
-				msg,
-				provider=self.config.provider,
-			) from e
-
 	async def close(self) -> None:
-		"""Close the HTTP client and release resources."""
-		await self._http_client.aclose()
+		"""Close the underlying HTTP client."""
+		if self._http_client and isinstance(self._http_client, _RealHttpxAsyncClient):
+			await self._http_client.aclose()
+			# self._http_client is set to None by _base_close()
+		# Call _base_close() for BaseClient to handle its part (like setting _http_client to None).
+		self._base_close()  # Call the renamed method in BaseClient
 
 	async def __aenter__(self) -> "AsyncClient":
 		"""Enter async context manager."""

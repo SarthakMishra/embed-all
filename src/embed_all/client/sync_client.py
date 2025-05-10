@@ -5,6 +5,7 @@ This module contains the synchronous client implementation.
 """
 
 import logging
+import warnings
 from typing import cast
 
 import httpx
@@ -14,6 +15,7 @@ from embed_all.client.providers import get_provider_client
 from embed_all.models import (
 	BatchEmbeddingRequest,
 	BatchEmbeddingResponse,
+	ProviderModel,
 	TextEmbeddingRequest,
 	TextEmbeddingResponse,
 )
@@ -48,6 +50,17 @@ class Client(BaseClient):
 			timeout: Request timeout in seconds
 			max_retries: Maximum number of retries for failed requests
 		"""
+		# Initialize provider_specific_config and _provider_client first
+		provider_specific_config = ProviderModel(
+			provider=provider,
+			api_key=api_key,
+			base_url=base_url,
+			model=model,
+			timeout=timeout,
+			max_retries=max_retries,
+		)
+		self._provider_client = get_provider_client(provider)(provider_specific_config)
+
 		super().__init__(
 			provider=provider,
 			api_key=api_key,
@@ -63,15 +76,13 @@ class Client(BaseClient):
 			follow_redirects=True,
 		)
 
-		# Initialize the provider-specific client
-		self._provider_client = get_provider_client(provider)(self.config)
-
 	def _get_default_model(self) -> str:
 		"""Return the default model for this provider."""
 		return self._provider_client.default_model
 
 	def _log_response(self, response: httpx.Response) -> None:
 		"""Log the response for debugging purposes."""
+		response.read()
 		logger.debug(
 			f"Response from {response.request.url}: "
 			f"status_code={response.status_code}, "
@@ -96,8 +107,9 @@ class Client(BaseClient):
 		Returns:
 			TextEmbeddingResponse containing the embeddings
 		"""
+		model_to_use: str = model or self.resolved_model_name
 		request = TextEmbeddingRequest(
-			model=model or self.config.model,
+			model=model_to_use,
 			input=text,
 			dimensions=dimensions,
 			**cast("dict", kwargs),
@@ -135,8 +147,9 @@ class Client(BaseClient):
 		Returns:
 			BatchEmbeddingResponse containing the embeddings
 		"""
+		model_to_use: str = model or self.resolved_model_name
 		request = BatchEmbeddingRequest(
-			model=model or self.config.model,
+			model=model_to_use,
 			inputs=texts,
 			dimensions=dimensions,
 			batch_size=batch_size,
@@ -162,10 +175,11 @@ class Client(BaseClient):
 		dimensions: int | None = None,
 		**kwargs: EmbeddingKwargs,
 	) -> TextEmbeddingResponse:
-		"""Asynchronously generate embeddings for text input.
+		"""Asynchronously generate embeddings for text input (simulated).
 
-		This method is implemented for API compatibility but uses the synchronous
-		implementation under the hood.
+		This method is an async-compatible wrapper around the synchronous `embed`
+		method. It issues a UserWarning because it does not provide true
+		non-blocking async behavior. For that, use `AsyncClient`.
 
 		Args:
 			text: The text or list of texts to embed
@@ -176,8 +190,11 @@ class Client(BaseClient):
 		Returns:
 			TextEmbeddingResponse containing the embeddings
 		"""
-		logger.warning(
-			"Using synchronous client with async method. For better performance, use AsyncClient for async operations."
+		warnings.warn(
+			"Running asynchronous `aembed` from synchronous Client. "
+			"For true non-blocking async behavior, use `AsyncClient`.",
+			UserWarning,
+			stacklevel=2,
 		)
 		return self.embed(text, model, dimensions, **kwargs)
 
@@ -189,10 +206,11 @@ class Client(BaseClient):
 		batch_size: int = 32,
 		**kwargs: EmbeddingKwargs,
 	) -> BatchEmbeddingResponse:
-		"""Asynchronously generate embeddings for a batch of texts.
+		"""Asynchronously generate embeddings for a batch of texts (simulated).
 
-		This method is implemented for API compatibility but uses the synchronous
-		implementation under the hood.
+		This method is an async-compatible wrapper around the synchronous `embed_batch`
+		method. It issues a UserWarning because it does not provide true
+		non-blocking async behavior. For that, use `AsyncClient`.
 
 		Args:
 			texts: List of texts to embed
@@ -204,8 +222,11 @@ class Client(BaseClient):
 		Returns:
 			BatchEmbeddingResponse containing the embeddings
 		"""
-		logger.warning(
-			"Using synchronous client with async method. For better performance, use AsyncClient for async operations."
+		warnings.warn(
+			"Running asynchronous `aembed_batch` from synchronous Client. "
+			"For true non-blocking async behavior, use `AsyncClient`.",
+			UserWarning,
+			stacklevel=2,
 		)
 		return self.embed_batch(texts, model, dimensions, batch_size, **kwargs)
 
