@@ -8,6 +8,7 @@ from embed_all.models.errors import InvalidRequestError
 
 from .base import BaseProviderClient
 from .cohere import CohereClient
+from .ollama import OllamaClient
 from .open_ai import OpenAIClient
 from .voyage import VoyageClient
 
@@ -16,6 +17,7 @@ PROVIDER_CLIENTS = {
 	"openai": OpenAIClient,
 	"voyage": VoyageClient,
 	"cohere": CohereClient,
+	"ollama": OllamaClient,
 }
 
 
@@ -39,4 +41,4 @@ def get_provider_client(provider: str) -> type[BaseProviderClient]:
 	return PROVIDER_CLIENTS[provider_lower]
 
 
-__all__ = ["BaseProviderClient", "CohereClient", "OpenAIClient", "VoyageClient", "get_provider_client"]
+__all__ = ["BaseProviderClient", "CohereClient", "OllamaClient", "OpenAIClient", "VoyageClient", "get_provider_client"]
