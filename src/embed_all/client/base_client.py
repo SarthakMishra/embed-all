@@ -76,6 +76,21 @@ class BaseClient(ABC):
 		)
 		logger.debug(f"Initialized {provider} client with model {self.config.model}")
 
+	@property
+	def resolved_model_name(self) -> str:
+		"""Returns the resolved model name, guaranteed to be a string."""
+		# self.config.model is set in __init__ by (param_model or self._get_default_model()),
+		# where _get_default_model() returns str. So, self.config.model is always str.
+		# However, its type annotation via ProviderModel might be str | None.
+		# This property provides a clear str return type.
+		model = self.config.model
+		if model is None:
+			# This case should ideally not be reached if __init__ logic is correct
+			# and _get_default_model always returns str.
+			# Fallback for type safety, though it implies a potential issue in __init__.
+			return self._get_default_model()
+		return model
+
 	@abstractmethod
 	def _get_default_model(self) -> str:
 		"""Return the default model for this provider."""
@@ -222,3 +237,17 @@ class BaseClient(ABC):
 			status_code=status_code,
 			response=error_data,
 		)
+
+	def _base_close(self) -> None:
+		"""Common closing logic, sets _http_client to None."""
+		if self._http_client and isinstance(self._http_client, httpx.Client):
+			self._http_client.close()
+		self._http_client = None
+
+	def __enter__(self) -> "BaseClient":
+		"""Enter context manager."""
+		return self
+
+	def __exit__(self, *args: object) -> None:
+		"""Exit context manager and close the client."""
+		self._base_close()
