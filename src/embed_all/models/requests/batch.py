@@ -12,14 +12,16 @@ from embed_all.models.requests.base import BaseRequest
 class BatchEmbeddingRequest(BaseRequest):
 	"""Request model for batch embedding operations."""
 
-	inputs: list[str] = Field(..., description="List of texts to embed in batch")
+	inputs: list[str] = Field(default=..., description="List of texts to embed in batch")
 	model: str
-	dimensions: int | None = Field(None, description="Desired dimensionality of the embeddings")
-	batch_size: int = Field(32, description="Number of texts to process in each batch")
-	truncate: bool | None = Field(None, description="Whether to truncate the input text. Provider-specific handling.")
-	encoding_format: str | None = Field(None, description="Output encoding format. Provider-specific.")
+	dimensions: int | None = Field(default=None, description="Desired dimensionality of the embeddings")
+	batch_size: int = Field(default=32, description="Number of texts to process in each batch")
+	truncate: bool | None = Field(
+		default=None, description="Whether to truncate the input text. Provider-specific handling."
+	)
+	encoding_format: str | None = Field(default=None, description="Output encoding format. Provider-specific.")
 	input_type: str | None = Field(
-		None, description="Type of the input text (e.g., query, document). Provider-specific."
+		default=None, description="Type of the input text (e.g., query, document). Provider-specific."
 	)
 
 	@field_validator("inputs")

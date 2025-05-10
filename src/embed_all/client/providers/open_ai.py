@@ -91,12 +91,14 @@ class OpenAIClient(BaseProviderClient):
 		    TextEmbeddingResponse containing the embeddings
 		"""
 		data = parsed_response.data
-		if not data:
-			msg = "No embeddings returned from API"
-			raise APIError(msg, provider=self.config.provider)
+		# An empty data list is a valid scenario, e.g., if input texts were empty or all filtered out.
+		# The API might return a 200 OK with an empty data list.
+		# We should not raise an error here, but return an empty list of embeddings.
+		# if not data:
+		#     msg = "No embeddings returned from API"
+		#     raise APIError(msg, provider=self.config.provider)
 
-		embeddings = []
-		# OpenAI returns embeddings in the order of the input
+		embeddings_data = []
 		for item in data:
 			embedding_values = item.embedding
 			idx = item.index
@@ -109,13 +111,13 @@ class OpenAIClient(BaseProviderClient):
 				text=text_content,
 				model=self.config.model,
 			)
-			embeddings.append(embedding)
+			embeddings_data.append(embedding)
 
 		# Sort by index to ensure original order, though OpenAI should preserve it
-		embeddings.sort(key=lambda emb: emb.index)
+		embeddings_data.sort(key=lambda emb: emb.index)
 
 		# Determine overall dimensions from the first embedding (assuming all are same)
-		dimensions = embeddings[0].dimensions if embeddings else 0
+		dimensions = embeddings_data[0].dimensions if embeddings_data else 0
 
 		# The original_texts for a single API call will correspond to the texts sent in that call.
 		# If TextEmbeddingRequest had a single string, original_texts will be a list with one item.
@@ -123,7 +125,7 @@ class OpenAIClient(BaseProviderClient):
 		# The 'texts' field in TextEmbeddingResponse should reflect the input structure that led to these embeddings.
 
 		return TextEmbeddingResponse(
-			embeddings=embeddings,
+			embeddings=embeddings_data,
 			dimensions=dimensions,
 			texts=original_texts,
 			model=parsed_response.model,
@@ -186,11 +188,16 @@ class OpenAIClient(BaseProviderClient):
 				) from e
 			if e.response.status_code == HTTP_STATUS_RATE_LIMIT:
 				msg = "Rate limit exceeded"
+				retry_after_header = e.response.headers.get("retry-after")
+				retry_after_seconds = (
+					int(retry_after_header) if retry_after_header and retry_after_header.isdigit() else None
+				)
 				raise RateLimitError(
 					msg,
 					provider=self.config.provider,
 					status_code=e.response.status_code,
 					response=response_json,
+					retry_after=retry_after_seconds,
 				) from e
 			if e.response.status_code == HTTP_STATUS_BAD_REQUEST:
 				msg = response_json.get("error", {}).get("message", e.response.text)
@@ -260,11 +267,16 @@ class OpenAIClient(BaseProviderClient):
 				) from e
 			if e.response.status_code == HTTP_STATUS_RATE_LIMIT:
 				msg = "Rate limit exceeded"
+				retry_after_header = e.response.headers.get("retry-after")
+				retry_after_seconds = (
+					int(retry_after_header) if retry_after_header and retry_after_header.isdigit() else None
+				)
 				raise RateLimitError(
 					msg,
 					provider=self.config.provider,
 					status_code=e.response.status_code,
 					response=response_json,
+					retry_after=retry_after_seconds,
 				) from e
 			if e.response.status_code == HTTP_STATUS_BAD_REQUEST:
 				msg = response_json.get("error", {}).get("message", e.response.text)
@@ -378,7 +390,7 @@ class OpenAIClient(BaseProviderClient):
 			dimensions=dimensions,
 			texts=original_input_texts,
 			batch_count=(num_texts + OPENAI_API_MAX_BATCH_SIZE - 1) // OPENAI_API_MAX_BATCH_SIZE,
-			failed_indices=sorted(set(failed_indices)),
+			failed_indices=cast("list[int]", sorted(set(failed_indices))) if failed_indices else None,
 			model=request.model,
 			provider=self.config.provider,
 			usage=total_usage,
@@ -471,7 +483,7 @@ class OpenAIClient(BaseProviderClient):
 			dimensions=dimensions,
 			texts=original_input_texts,
 			batch_count=(num_texts + OPENAI_API_MAX_BATCH_SIZE - 1) // OPENAI_API_MAX_BATCH_SIZE,
-			failed_indices=sorted(set(failed_indices)),
+			failed_indices=cast("list[int]", sorted(set(failed_indices))) if failed_indices else None,
 			model=request.model,
 			provider=self.config.provider,
 			usage=total_usage,

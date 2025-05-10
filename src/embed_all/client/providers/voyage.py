@@ -99,8 +99,14 @@ class VoyageClient(BaseProviderClient):
 		"""
 		data = parsed_response.data
 		if not data:
-			msg = "No embeddings returned from API"
-			raise APIError(msg, provider=self.config.provider)
+			return TextEmbeddingResponse(
+				model=request_model_name,
+				provider=self.config.provider,
+				embeddings=[],
+				dimensions=0,
+				texts=original_texts,
+				usage=parsed_response.usage.model_dump() if parsed_response.usage else None,
+			)
 
 		embeddings = []
 		for item in data:
@@ -289,7 +295,7 @@ class VoyageClient(BaseProviderClient):
 			dimensions=final_dimensions,
 			texts=original_input_texts,
 			batch_count=(num_texts + VOYAGE_API_MAX_BATCH_SIZE - 1) // VOYAGE_API_MAX_BATCH_SIZE,
-			failed_indices=sorted(set(failed_indices)),
+			failed_indices=cast("list[int]", sorted(set(failed_indices))) if failed_indices else None,
 			model=request.model,  # Overall model from original request
 			provider=self.config.provider,
 			usage={"total_tokens": total_tokens},
@@ -457,7 +463,7 @@ class VoyageClient(BaseProviderClient):
 			dimensions=final_dimensions,
 			texts=original_input_texts,
 			batch_count=(num_texts + VOYAGE_API_MAX_BATCH_SIZE - 1) // VOYAGE_API_MAX_BATCH_SIZE,
-			failed_indices=sorted(set(failed_indices)),
+			failed_indices=cast("list[int]", sorted(set(failed_indices))) if failed_indices else None,
 			model=request.model,
 			provider=self.config.provider,
 			usage={"total_tokens": total_tokens},
