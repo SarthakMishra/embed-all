@@ -20,6 +20,15 @@
 - **Minimal dependencies**
 - **Extensible**: add new providers easily
 
+## Supported Providers
+
+| Provider      | Provider Key | Default Model          |
+|---------------|--------------|------------------------|
+| OpenAI        | `openai`     | `text-embedding-3-small` |
+| Voyage AI     | `voyage`     | `voyage-2`             |
+| Ollama         | `ollama`     | `all-minilm`          |
+| Cohere         | `cohere`     | `embed-v4.0`          |
+
 ## Installation
 
 > **Requires Python 3.12+**
@@ -84,15 +93,6 @@ async def main():
 
 asyncio.run(main())
 ```
-
-## Supported Providers
-
-- **OpenAI** (`provider="openai"`)
-  - Default model: `text-embedding-3-small`
-  - API key required
-- **Voyage AI** (`provider="voyage"`)
-  - Default model: `voyage-2`
-  - API key required
 
 ## API Reference
 
