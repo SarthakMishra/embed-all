@@ -107,11 +107,6 @@ scripts/
    - Add authentication handling
    - Write comprehensive tests
 
-2. **Build utility functions**
-   - Implement embedding similarity calculation
-   - Add vector search capabilities
-   - Create batching utilities
-
 ### Phase 3: Schema Parser & Generator
 
 1. **Build OpenAPI schema parser**
