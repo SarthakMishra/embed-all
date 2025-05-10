@@ -63,10 +63,6 @@ venv = ".venv"
 # Extra paths to search for imported modules
 extraPaths = ["src"]
 
-[project.scripts]
-codemap = "codemap.cli:main"
-cm = "codemap.cli:main"
-
 [tool.pytest]
 testpaths = ["tests"]
 pythonpath = ["src"]
