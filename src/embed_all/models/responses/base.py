@@ -14,6 +14,6 @@ from embed_all.models.base import BaseModel
 class BaseResponse(BaseModel):
 	"""Base class for all response models."""
 
-	model: str = Field(..., description="The model used for embedding")
-	provider: str = Field(..., description="The provider that generated the embeddings")
-	usage: dict[str, Any] | None = Field(None, description="Usage information from the provider")
+	model: str = Field(default=..., description="The model used for embedding")
+	provider: str = Field(default=..., description="The provider that generated the embeddings")
+	usage: dict[str, Any] | None = Field(default=None, description="Usage information from the provider")

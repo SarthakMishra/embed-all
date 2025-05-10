@@ -24,7 +24,7 @@ class ProviderModel(BaseModel):
 	provider: str = Field(..., description="The provider name")
 	api_key: str | None = Field(None, description="API key for the provider")
 	base_url: str | None = Field(None, description="Base URL for API requests")
-	model: str = Field(..., description="Model name/identifier for embeddings")
+	model: str | None = Field(None, description="Model name/identifier for embeddings, None to use provider default")
 	timeout: int = Field(60, description="Request timeout in seconds")
 	max_retries: int = Field(3, description="Maximum number of retries for failed requests")
 
