@@ -32,6 +32,6 @@ def get_provider_client(provider: str) -> type[BaseProviderClient]:
 	if provider_lower not in PROVIDER_CLIENTS:
 		supported = ", ".join(PROVIDER_CLIENTS.keys())
 		msg = f"Provider '{provider}' is not supported. Supported providers: {supported}"
-		raise InvalidRequestError(msg)
+		raise InvalidRequestError(msg, provider=provider)
 
 	return PROVIDER_CLIENTS[provider_lower]
